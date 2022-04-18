@@ -28,6 +28,10 @@ jobs:
         run: |
           chmod +x mvnw
           ./mvnw -B clean verify
+  code-vulnerability:
+    name: Code Scanning
+    runs-on: ubuntu-20.04
+    steps:
       - name: Code vulnerability scanning
         uses: anchore/scan-action@v3
         id: scan
