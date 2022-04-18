@@ -11,6 +11,13 @@ spring:
     timeout-per-shutdown-phase: 15s
   cloud:
     gateway:
+      httpclient:             # HTTP client timeouts
+        connect-timeout: 5000
+        response-timeout: 5s
+      pool:
+        type: elastic
+        max-idle-time: 15s
+        max-life-time: 60s
       routes:
         - id: catalog-route
           uri: ${CATALOG_SERVICE_URL:http://localhost:9001}/books
