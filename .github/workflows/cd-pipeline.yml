@@ -37,7 +37,7 @@ jobs:
           chmod +x mvnw
           ./mvnw -B clean verify -Pintegration-test
 
-  sonar:
+  sonar-report:
     name: Test - SonarCloud Scan
     runs-on: ubuntu-20.04
 
