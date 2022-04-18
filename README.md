@@ -210,3 +210,25 @@ spring:
 The RequestRateLimiter filter relies on a KeyResolver bean to derive the bucket to use per request. By default, it uses the currently authenticated user in Spring Security. You can define
 your own KeyResolver bean and make it return a constant value (for example, ANONYMOUS) so that any request will be mapped to the same bucket.
 In your Edge Service project, create a new **RateLimiterConfig** class and declare a **KeyResolver** bean implementing a strategy to return a constant key.
+
+# Distributed session management with Redis
+
+## Handling sessions with Spring Session Data Redis (pom.xml && application.yml)
+- Add the **org.springframework.session:spring-session-data-redis** dependency.
+
+A fundamental reason for using a distributed session store is that you usually have multiple instances for the same application. You want them to access the same session data to provide a
+seamless experience to the user.
+Redis is a popular option for session management and is supported by Spring Session Data Redis. Furthermore, you have already set it up for the rate limiters. You can add it to Edge
+Service with minimal configuration.
+
+- Instruct Spring Boot to use Redis for session management (**spring.session.store-type**) and define a unique namespace to prefix all session data
+  coming from Edge Service (**spring.session.redis.namespace**). You can also define a timeout for the session (**spring.session.timeout**). If you don’t specify any, the default is 30
+  minutes.
+```
+spring:
+  session:
+    store-type: redis
+    timeout: 10m
+    redis:
+      namespace: polar:edge
+```
