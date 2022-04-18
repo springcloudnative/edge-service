@@ -1,0 +1,92 @@
+# In this pipeline the continuous deployment
+# In a first stage workflow is running two parallel jobs:
+#  - for both unit and integration tests
+#  - for running static code analysis and publish it results on
+#    the Sonar Cloud website.
+# Only when both of these tasks end successfully, a secod, "Publish", the
+# state is started for packaging the application as a container image
+# and pushing it to Docker Hub.
+
+name: CD Pipeline
+on:
+  push:       # The event that triggers the workflow execution: after a push on the main and feature branches.
+    branches:
+      - 'main'
+      - 'master'
+
+jobs:
+  test:
+    name: Test - Units & Integrations
+    runs-on: ubuntu-20.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Set up JDK
+        uses: actions/setup-java@v2
+        with:
+          distribution: temurin
+          java-version: 11
+          cache: maven
+      - name: Maven package
+        run: |
+          chmod +x mvnw
+          ./mvnw -B clean package -DskipTests
+      - name: Maven verify
+        run: |
+          chmod +x mvnw
+          ./mvnw -B clean verify -Pintegration-test
+
+  sonar:
+    name: Test - SonarCloud Scan
+    runs-on: ubuntu-20.04
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up JDK
+        uses: actions/setup-java@v2
+        with:
+          distribution: temurin
+          java-version: 11
+          cache: maven
+      - name: SonarCloud Scan
+        run: mvn -B clean verify -Psonar -Dsonar.login=${{ secrets.SONAR_TOKEN }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Code vulnerability scanning
+        uses: anchore/scan-action@v3
+        id: scan
+        with:
+          path: "${{ github.workspace }}"
+          fail-build: false
+          severity-cutoff: high
+          acs-report-enable: true
+        - name: Upload vulnerability report
+          uses: github/codeql-action/upload-sarif@v1
+          if: success() || failure()
+          with:
+            sarif_file: ${{ steps.scan.outputs.sarif }}
+            - name: Validate Kubernetes manifests
+              uses: stefanprodan/kube-tools@v1
+              with:
+                kubectl: 1.23.4
+                kubeval: 0.16.1
+                command: |
+                  kubeval --strict --schema-location https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master -d k8s
+  docker:
+    name: Publish - Docker Hub
+    runs-on: ubuntu-20.04
+    needs: [test, sonar]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Set up JDK
+        uses: actions/setup-java@v2
+        with:
+          distribution: temurin
+          java-version: 11
+          cache: maven
+      - name: Containerize and publish image
+        run: |
+          chmod +x mvnw
+          ./mvnw spring-boot:build-image -Premote -DREGISTRY_URL=${{ secrets.REGISTRY_URL }} -DREGISTRY_USERNAME=${{ secrets.REGISTRY_USERNAME }} -DREGISTRY_TOKEN=${{ secrets.REGISTRY_TOKEN }} -Dspring-boot.build-image.publish=true -DskipTests=true

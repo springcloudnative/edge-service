@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: edge-service
+  labels:
+    app: edge-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: edge-service
+  template:
+    metadata:
+      labels:
+        app: edge-service
+    spec:
+      containers:
+        - name: edge-service
+          image: ernestoacostacuba/edge-service
+          imagePullPolicy: IfNotPresent
+          lifecycle:
+            preStop:  # Makes K8 wait 5s before sending the SIGTERM signal to the Pod
+              exec:
+                command: [ "sh", "-c", "sleep 5" ]
+          ports:
+            - containerPort: 9000
+          env:
+            - name: POLAR_CATALOG_SERVICE_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: catalog-service-conf
+                  key: polar-catalog-service-uri
+            - name: POLAR_ORDER_SERVICE_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: order-service-conf
+                  key: polar-order-service-uri
+            - name: SPA_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: edge-service-conf
+                  key: spa-url
+            - name: SPRING_CLOUD_CONFIG_URI
+              valueFrom:
+                configMapKeyRef:
+                  name: config-service-conf
+                  key: spring-cloud-config-uri
+            - name: SPRING_REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: edge-service-conf
+                  key: spring-redis-host
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: edge-service
+  labels:
+    app: edge-service
+spec:
+  type: ClusterIP
+  selector:
+    app: edge-service
+  ports:
+    - protocol: "TCP"
+      port: 80
+      targetPort: 9000
