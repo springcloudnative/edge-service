@@ -45,7 +45,21 @@ Let’s define a maximum of 3 retry attempts for all GET requests whenever the e
 example, if the result is a *404* response, it doesn’t make sense to retry the request. You can also list the exceptions for which a retry should be attempted, for example, *IOException* and
 *TimeoutException*.
 **The retry pattern is useful when a downstream service is momentarily unavailable**.
-
+```
+    gateway:
+      default-filters:
+        - name: Retry
+          args:
+            retries: 3
+            methods: GET
+            series: SERVER_ERROR
+            exceptions: java.io.IOException, java.util.concurrent.TimeoutException
+            backoff:
+              firstBackoff: 50ms
+              maxBackoff: 500ms
+              factor: 2
+              basedOnPreviousValue: false
+```
 # Fault tolerance with Spring Cloud Circuit Breaker and Resilience4J
 The circuit breaker pattern comes in handy if a downstream service stays down for more than a few instants. At that point, we could directly stop forwarding
 request to it until we're sure that it's back. Keeping sending requests wouldn't be beneficial for the caller nor the callee.
@@ -62,6 +76,49 @@ example, you might decide to return a default value or the last available value 
 
 ## Introducing circuit breakers with Spring Cloud Circuit Breaker (application.yml)
 **org.springframework.cloud:spring-cloud-starter-circuitbreaker-reactor-resilience4j** (pom.xml)
-
+```
+    gateway:
+      routes:
+        - id: catalog-route
+          uri: ${CATALOG_SERVICE_URL:http://localhost:9001}/books
+          predicates:
+            - Path=/books/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: catalogCircuitBreaker
+                fallbackUri: forward:/catalog-fallback
+        - id: order-route
+          uri: ${ORDER_SERVICE_URL:http://localhost:9002}/orders
+          predicates:
+            - Path=/orders/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: orderCiruitBreaker
+```
 The **CircuitBreaker** filter in Spring Cloud Gateway relies on Spring Cloud Circuit Breaker to wrap a route. Being a *GatewayFilter*, you can apply it to specific routes or define it as a default
 filter. Let’s go with the first option. You can also specify an optional fallback URI to forward the request when the circuit is in an open state.
+
+## Configuring a circuit breaker with Resilience4J(application.yml)
+After defining to which routes apply the **CircuitBreaker** filter, you need to configure the circuit breakers themselves. As often in Spring Boot, you have two main choices. You can
+configure circuit breakers through the properties provided by Resilience4J or via a *Customizer* bean. 
+Since we’re using the reactive version of Resilience4J, it would be a *Customizer<ReactiveResilience4JCircuitBreakerFactory>*.
+```
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        slidingWindowsSize: 20
+        permittedNumberOfCallsInHalfOpenState: 5
+        failureRateThreshold: 50
+        waitDurationInOpenState: 15000
+  timelimiter:
+    configs:
+      default:
+        timeoutDuration: 5s
+```
+For the current example, we can define circuit breakers to consider a window of 20 calls (**slidingWindowSize**). Each new call will make the window move, dropping the oldest
+registered call. When at least 50% of the calls in the window produced an error (**failureRateThreshold**), the circuit breaker trips, and the circuit enters the open state. After 15
+seconds (**waitDurationInOpenState**), the circuit is allowed to transition to a half-open state in which 5 calls are permitted (**permittedNumberOfCallsInHalfOpenState**). If at least 50% of
+them result in an error, the circuit will go back to the open state. Otherwise, the circuit breaker trips to the close state.
