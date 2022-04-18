@@ -130,3 +130,17 @@ WebFlux supports defining REST endpoints both using @RestController classes and 
 fallback endpoints.
 Functional endpoints in Spring WebFlux are defined as routes in a **RouterFunction<ServerResponse>** bean, using the fluent API provided by *RouterFunctions*. 
 For each route, you need to define the endpoint URL, a method, and a handler.
+
+## Combining circuit breakers, retries, and time limiters
+When you combine multiple resilience patterns, the sequence in which they are applied is fundamental. Spring Cloud Gateway takes care of applying the **TimeLimiter** first (or the
+timeout on the HTTP client), then the **CircuitBreaker** filter, and finally **Retry**.
+You can verify the result of applying these patterns to Edge Service using a tool like Apache Benchmark.
+Make sure your downstream services are down and see what happens, if for instance, you run 21 sequential POST requests (-n 21 -c 1 -m POST) to one of the
+endpoints (/orders).
+```
+ab -n 21 -c 1 -m POST http://localhost:9000/orders
+```
+or
+``` 
+ab -n 21 -c 1 -m GET http://localhost:9000/books
+```
