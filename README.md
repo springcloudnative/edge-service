@@ -144,3 +144,69 @@ or
 ``` 
 ab -n 21 -c 1 -m GET http://localhost:9000/books
 ```
+
+# Rate limiting with Spring Cloud Gateway and Redis
+Rate limiting is a pattern used to control the rate of traffic sent to or received from an application, helping to make your system more resilient and robust. In the context of HTTP interactions, you
+can apply this pattern to control outgoing or incoming network traffic using client-side and server-side rate limiters, respectively.
+
+**Client-side rate limiters** are for constraining the number of requests sent to a downstream service in a given period. It’s a useful pattern to adopt when third-party organizations like cloud
+providers manage and offer the downstream service. You want to avoid incurring extra costs for having sent more requests than the ones allowed by your subscription. In case of pay-per-use
+services, it helps prevent unexpected expenses.
+
+**Server-side rate limiters** are for constraining the number of requests received by an upstream service (or client) in a given period. This pattern is handy when implemented in an API gateway
+to protect the whole system from overloading or DoS attacks.
+When a user has exceeded the number of allowed requests in a specific time window, all the extra requests are rejected with an HTTP 429 - Too Many Requests status. The limit is applied
+according to a given strategy. For example, you can limit requests per session, per IP address, per user, or per tenant. The overall goal is to keep the system available for all users in case of
+adversities. That is the definition of resilience.
+
+Resilience4J supports the client-side rate limiter and bulkhead patterns for both reactive and non-reactive applications. Spring Cloud Gateway supports the server-side rate limiter pattern.
+Let's see how to use the server-side rate limiter pattern for the Edge Service using Spring Cloud Gateway and **Spring Data Redis Reactive**.
+
+## Running Redis as a container (docker-compose.yml)
+Redis can be used as a dedicated service to store the rate-limiting state and make it available to all the application replicas.
+Redis is an in-memory store that is commonly used as a cache, message broker, or database. In Edge Service, you’re going to use it as the data service backing the request limiter
+implementation provided by Spring Cloud Gateway. The Spring Data Reactive Redis project provides the integration between a Spring Boot application and Redis.
+```
+  polar-redis:
+    image: redis:6.2
+    container_name: polar-redis
+    ports:
+      - 6379:6379
+```
+
+## Integrating Spring with Redis (pom.xml && application.yml)
+To add **org.springframework.boot:spring-boot-starter-data-redis-reactive**
+
+In the *application.yml* file, you can configure the Redis integration through the properties provided by Spring Boot. Besides **spring.redis.host** and **spring.redis.port** for
+defining where to reach Redis, you can also specify connection and read timeouts using **spring.redis.connect-timeout** and **spring.redis.timeout** respectively.
+```
+spring:
+  redis:
+    connec-timeout: 2s
+    host: ${REDIS_HOST:localhost}
+    port: 6379
+    timeout: 1s
+```
+
+## Using the RequestRateLimiter filter with Redis
+Depending on the requirements, you can configure the RequestRateLimiter filter for specific routes or as a default filter.
+The implementation of **RequestRateLimiter** on Redis is based on the *token bucket algorithm*. Each user is assigned a bucket inside which tokens are dripped overtime at a specific rate (
+*replenish rate*). Each bucket has a maximum capacity (*burst capacity*). When a user makes a request, a token is removed from its bucket. When there are no more tokens left, the request is
+not permitted, and the user will have to wait that more tokens are dripped into its bucket.
+You can allow temporary bursts by defining a larger capacity for the bucket (*redis-rate-limiter.burstCapacity*), for example, 20.
+t means that when a spike occurs, up to 20 requests are allowed per second. Since the replenish rate is lower than the burst capacity, subsequent bursts are not allowed.
+```
+spring:
+  cloud:
+    gateway:
+      default-filters:
+        - name: RequestRateLimiter
+          args:
+            redis-rate-limiter.replenishRate: 10
+            redis-rate-limiter.burstCapacity: 20
+            redis-rate-limiter.requestedTokens: 1
+```
+
+The RequestRateLimiter filter relies on a KeyResolver bean to derive the bucket to use per request. By default, it uses the currently authenticated user in Spring Security. You can define
+your own KeyResolver bean and make it return a constant value (for example, ANONYMOUS) so that any request will be mapped to the same bucket.
+In your Edge Service project, create a new **RateLimiterConfig** class and declare a **KeyResolver** bean implementing a strategy to return a constant key.
