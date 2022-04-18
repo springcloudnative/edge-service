@@ -122,3 +122,11 @@ For the current example, we can define circuit breakers to consider a window of 
 registered call. When at least 50% of the calls in the window produced an error (**failureRateThreshold**), the circuit breaker trips, and the circuit enters the open state. After 15
 seconds (**waitDurationInOpenState**), the circuit is allowed to transition to a half-open state in which 5 calls are permitted (**permittedNumberOfCallsInHalfOpenState**). If at least 50% of
 them result in an error, the circuit will go back to the open state. Otherwise, the circuit breaker trips to the close state.
+
+The timeout configured via Resilience4J will take precedence over the response timeout for the Netty HTTP client (**spring.cloud.gateway.httpclient.response-timeout**).
+
+## Defining fallback REST APIs with Spring WebFlux
+WebFlux supports defining REST endpoints both using @RestController classes and Router Functions. Let’s use the functional way for declaring the
+fallback endpoints.
+Functional endpoints in Spring WebFlux are defined as routes in a **RouterFunction<ServerResponse>** bean, using the fluent API provided by *RouterFunctions*. 
+For each route, you need to define the endpoint URL, a method, and a handler.
