@@ -32,6 +32,13 @@ jobs:
     name: Code Scanning
     runs-on: ubuntu-20.04
     steps:
+      - uses: actions/checkout@v2
+      - name: Set up JDK
+        uses: actions/setup-java@v2
+        with:
+          distribution: temurin
+          java-version: 11
+          cache: maven
       - name: Code vulnerability scanning
         uses: anchore/scan-action@v3
         id: scan
