@@ -1,6 +1,5 @@
 # It will runs whenever a new code is pushed onto a branch that is not master
 # or does not start with a name release
-
 name: Feature Branch
 on:
   push:
