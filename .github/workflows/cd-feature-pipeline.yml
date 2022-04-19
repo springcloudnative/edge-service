@@ -1,0 +1,61 @@
+# It will runs whenever a new code is pushed onto a branch that is not master
+# or does not start with a name release
+name: Feature Branch
+on:
+  push:
+    branches-ignore:
+      - 'main'
+      - 'master'
+      - 'release*'
+
+jobs:
+  test:
+    name: Unit Test
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up JDK
+        uses: actions/setup-java@v2
+        with:
+          distribution: temurin
+          java-version: 11
+          cache: maven
+      - name: Maven Package
+        run: |
+          chmod +x mvnw
+          ./mvnw -B clean package -DskipTests
+      - name: Maven Verify
+        run: |
+          chmod +x mvnw
+          ./mvnw -B clean verify
+  code-vulnerability:
+    name: Code Scanning
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up JDK
+        uses: actions/setup-java@v2
+        with:
+          distribution: temurin
+          java-version: 11
+          cache: maven
+      - name: Code vulnerability scanning
+        uses: anchore/scan-action@v3
+        id: scan
+        with:
+          path: "${{ github.workspace }}"
+          fail-build: false
+          severity-cutoff: high
+          acs-report-enable: true
+      - name: Upload vulnerability report
+        uses: github/codeql-action/upload-sarif@v1
+        if: success() || failure()
+        with:
+          sarif_file: ${{ steps.scan.outputs.sarif }}
+      - name: Validate Kubernetes manifests
+        uses: stefanprodan/kube-tools@v1
+        with:
+          kubectl: 1.23.4
+          kubeval: 0.16.1
+          command: |
+            kubeval --strict --schema-location https://raw.githubusercontent.com/yannh/kubernetes-json-schema/master -d k8s

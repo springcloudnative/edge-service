@@ -13,10 +13,31 @@
 	<version>0.0.1-SNAPSHOT</version>
 	<name>edge-service</name>
 	<description>Provides API gateway and cross-cutting concerns</description>
+
 	<properties>
 		<java.version>11</java.version>
 		<spring-cloud.version>2021.0.1</spring-cloud.version>
+		<testcontainers.version>1.16.2</testcontainers.version>
+		<!--suppress UnresolvedMavenProperty -->
+		<registryUsername>${REGISTRY_USERNAME}</registryUsername>
+		<!--suppress UnresolvedMavenProperty -->
+		<registryToken>${REGISTRY_TOKEN}</registryToken>
+		<!--suppress UnresolvedMavenProperty -->
+		<registryUrl>${REGISTRY_URL}</registryUrl>
+		<jib-maven-plugin.version>3.2.1</jib-maven-plugin.version>
+		<json.version>20180130</json.version>
+		<spring-boot-maven-plugin.version>2.6.1</spring-boot-maven-plugin.version>
+		<jacoco-maven-plugin.version>0.8.4</jacoco-maven-plugin.version>
+		<spring-cloud-starter-contract-stub-runner.version>3.1.1</spring-cloud-starter-contract-stub-runner.version>
+		<sonar-maven-plugin.version>3.6.0.1398</sonar-maven-plugin.version>
+		<maven-release-plugin.version>2.5.3</maven-release-plugin.version>
+		<code.coverage.exclusions>
+			**/com/polarbookshop/orderservice/domain/dto/**,
+			**/com/polarbookshop/orderservice/infrastructure/entity/**,
+			**/com/polarbookshop/orderservice/OrderServiceApplication.java
+		</code.coverage.exclusions>
 	</properties>
+
 	<dependencies>
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
@@ -24,17 +45,64 @@
 		</dependency>
 
 		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-config</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.retry</groupId>
+			<artifactId>spring-retry</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-circuitbreaker-reactor-resilience4j</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-redis-reactive</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.session</groupId>
+			<artifactId>spring-session-data-redis</artifactId>
+		</dependency>
+
+		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>junit-jupiter</artifactId>
+			<version>${testcontainers.version}</version>
+			<scope>test</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>mysql</artifactId>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
+
 	<dependencyManagement>
 		<dependencies>
 			<dependency>
 				<groupId>org.springframework.cloud</groupId>
 				<artifactId>spring-cloud-dependencies</artifactId>
 				<version>${spring-cloud.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+
+			<dependency>
+				<groupId>org.testcontainers</groupId>
+				<artifactId>testcontainers-bom</artifactId>
+				<version>${testcontainers.version}</version>
 				<type>pom</type>
 				<scope>import</scope>
 			</dependency>
@@ -46,8 +114,261 @@
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
+				<version>${project.parent.version}</version>
+			</plugin>
+
+			<plugin>
+				<groupId>org.jacoco</groupId>
+				<artifactId>jacoco-maven-plugin</artifactId>
+				<version>${jacoco-maven-plugin.version}</version>
+				<executions>
+					<execution>
+						<id>default-prepare-agent</id>
+						<goals>
+							<goal>prepare-agent</goal>
+						</goals>
+					</execution>
+					<execution>
+						<id>default-report</id>
+						<phase>prepare-package</phase>
+						<goals>
+							<goal>report</goal>
+						</goals>
+					</execution>
+				</executions>
 			</plugin>
 		</plugins>
 	</build>
+
+	<profiles>
+		<!--This profile is used to deploy the application to the local K8 cluster using Skaffold-->
+		<profile>
+			<id>jib</id>
+			<activation>
+				<activeByDefault>false</activeByDefault>
+			</activation>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>com.google.cloud.tools</groupId>
+						<artifactId>jib-maven-plugin</artifactId>
+						<version>${jib-maven-plugin.version}</version>
+						<executions>
+							<execution>
+								<phase>package</phase>
+								<goals>
+									<goal>build</goal>
+								</goals>
+							</execution>
+						</executions>
+						<configuration>
+							<container>
+								<ports>
+									<port>9002</port>
+								</ports>
+							</container>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+
+		<profile>
+			<id>remote</id>
+			<activation>
+				<activeByDefault>false</activeByDefault>
+			</activation>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.springframework.boot</groupId>
+						<artifactId>spring-boot-maven-plugin</artifactId>
+						<configuration>
+							<layers>
+								<enabled>true</enabled>
+							</layers>
+							<image>
+								<name>${registryUsername}/${project.name}:${project.version}</name>
+								<publish>true</publish>
+								<env>
+									<BP_JVM_VERSION>11</BP_JVM_VERSION>
+								</env>
+							</image>
+							<docker>
+								<builderRegistry>
+									<username>${registryUsername}</username>
+									<password>${registryToken}</password>
+									<url>${registryUrl}</url>
+								</builderRegistry>
+								<publishRegistry>
+									<username>${registryUsername}</username>
+									<password>${registryToken}</password>
+									<url>${registryUrl}</url>
+								</publishRegistry>
+							</docker>
+						</configuration>
+						<executions>
+							<execution>
+								<goals>
+									<goal>build-image</goal>
+								</goals>
+							</execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+
+		<!-- This profile does two things - with build-helper-maven-plugin it enables Maven
+		to find integration tests classes located in a separated directory - src/integration-test/java.
+		And with maven-failsafe-plugin it enables to run integration tests.-->
+		<profile>
+			<id>integration-test</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.codehaus.mojo</groupId>
+						<artifactId>build-helper-maven-plugin</artifactId>
+						<version>${build-helper-maven-plugin.version}</version>
+						<executions>
+							<execution>
+								<id>add-integration-test-sources</id>
+								<phase>generate-test-sources</phase>
+								<goals>
+									<goal>add-test-source</goal>
+								</goals>
+								<configuration>
+									<sources>
+										<source>src/integration-test/java</source>
+									</sources>
+								</configuration>
+							</execution>
+						</executions>
+					</plugin>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-failsafe-plugin</artifactId>
+						<version>${maven-failsafe-plugin.version}</version>
+						<executions>
+							<execution>
+								<id>failsafe-integration-tests</id>
+								<phase>integration-test</phase>
+								<goals>
+									<goal>integration-test</goal>
+									<goal>verify</goal>
+								</goals>
+								<configuration>
+									<skipTests>false</skipTests>
+									<includes>
+										<include>**/*IT</include>
+									</includes>
+								</configuration>
+							</execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+
+		<!-- With this profile we enable SonarCloud analysis and define where the source code
+		is located, what classes & packages should be executed from the analysis and what
+		is SonarCloud URL.-->
+		<profile>
+			<id>sonar</id>
+			<activation>
+				<activeByDefault>false</activeByDefault>
+			</activation>
+			<properties>
+				<sonar.sources>.</sonar.sources>
+				<sonar.inclusions>src/main/java/**,src/main/resources/**</sonar.inclusions>
+				<sonar.exclusions>${code.coverage.exclusions}</sonar.exclusions>
+				<sonar.projectKey>9f5b468458cf6735d89bd3607f62203678aa8a3d</sonar.projectKey>
+				<sonar.organization>springcloudnative</sonar.organization>
+				<sonar.host.url>https://sonarcloud.io</sonar.host.url>
+			</properties>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.sonarsource.scanner.maven</groupId>
+						<artifactId>sonar-maven-plugin</artifactId>
+						<version>${sonar-maven-plugin.version}</version>
+						<executions>
+							<execution>
+								<phase>verify</phase>
+								<goals>
+									<goal>sonar</goal>
+								</goals>
+							</execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+
+		<profile>
+			<id>release</id>
+			<activation>
+				<activeByDefault>false</activeByDefault>
+			</activation>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.springframework.boot</groupId>
+						<artifactId>spring-boot-maven-plugin</artifactId>
+						<configuration>
+							<layers>
+								<enabled>true</enabled>
+							</layers>
+							<image>
+								<name>${registryUsername}/${project.name}:${project.version}</name>
+								<publish>true</publish>
+								<env>
+									<BP_JVM_VERSION>11</BP_JVM_VERSION>
+								</env>
+							</image>
+							<docker>
+								<builderRegistry>
+									<username>${registryUsername}</username>
+									<password>${registryToken}</password>
+									<url>${registryUrl}</url>
+								</builderRegistry>
+								<publishRegistry>
+									<username>${registryUsername}</username>
+									<password>${registryToken}</password>
+									<url>${registryUrl}</url>
+								</publishRegistry>
+							</docker>
+						</configuration>
+						<executions>
+							<execution>
+								<goals>
+									<goal>build-image</goal>
+								</goals>
+							</execution>
+						</executions>
+					</plugin>
+
+					<!--We need to disable the default deploy plugin as we're use the Spotify Docker plugin.-->
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-deploy-plugin</artifactId>
+						<version>2.8.2</version>
+						<configuration>
+							<skip>true</skip>
+						</configuration>
+					</plugin>
+
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-release-plugin</artifactId>
+						<version>2.5.3</version>
+						<configuration>
+							<tagNameFormat>v@{project.version}</tagNameFormat>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
 
 </project>
