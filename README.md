@@ -232,3 +232,54 @@ spring:
     redis:
       namespace: polar:edge
 ```
+# Managing external access with Kubernetes Ingress
+## Understanding Ingress API and Ingress Controller
+There are a few different ways of exposing applications outside a Kubernetes cluster. We can rely on the Ingress API.
+
+An **Ingress** is an object that "manages external access to the services in a cluster, typically HTTP. Ingress may provide load balancing, SSL termination and name-based virtual hosting".
+In production, an Ingress object is usually enhanced to perform load balancing, make the system reachable through a specific URL, and manage the SSL termination to expose the application
+services via HTTPS. The cloud platform or dedicated tools are used to achieve that.
+
+What about local environments? When you run your applications in a local Kubernetes cluster, you need to enable the Ingress support in kind and define an external HTTP port through which
+you want to manage access to the services in the cluster.
+Update the **kind-config.yml file to enables Ingress support and makes the cluster accessible via port 80 of your localhost.
+
+# Working with Ingress objects
+Edge Service takes care of application routing, but it should not be concerned with the underlying infrastructure and network configuration. Using an Ingress resource, we can decouple
+the two responsibilities. Developers would maintain Edge Service while the platform team would manage the Ingress Controller and the network configuration (perhaps relying on a service mesh
+like Linkerd or Istio).
+1. Define an Ingress to route all HTTP traffic coming from outside the cluster to Edge Service.
+2. In the Edge Service project, create a new ingress.yml file in the k8s folder.
+```
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: polar-ingress
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: edge-service
+                port:
+                  number: 80
+```
+
+3. Open a Terminal window, navigate to the Edge Service project root folder (edge-service), and run the following command to build a new container image and load it into your kind
+   cluster.
+```
+kind load docker-image <your_dockerhub_username>/edge-service:0.0.1-SNAPSHOT
+```
+
+4. From the same Terminal window, run the following to deploy Edge Service and the Ingress    to the local Kubernetes cluster.
+```
+kubectl apply -f k8s
+```
+
+You can check when the application is up and running either using the Kubernetes CLI or Octant. 
+Once the application is ready, open a browser window and visit *localhost/*. The NGINX Ingress Controller will enforce the rules defined in the Ingress resource and route the request to Edge Service. Since we haven’t defined any handler
+for the root endpoint */* yet, you should get an error page from Spring Boot. That’s expected.
