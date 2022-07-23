@@ -10,9 +10,13 @@ spring:
   lifecycle:
     timeout-per-shutdown-phase: 15s
   config:
+    active:
+      on-profile: mysqldev
+    enabled: true
     import: "optional:configserver:"
   cloud:
     config:
+      enabled: true
       uri: ${SPRING_CLOUD_CONFIG_URI:http://localhost:8888}
       request-connect-timeout: 5000 # 5s
       request-read-timeout: 5000 # 5s
