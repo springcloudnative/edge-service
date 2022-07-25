@@ -12,7 +12,7 @@ build:
       context: .
       jib:
         type: maven
-        args: [-Pjib]
+        args: [-Pjib, -DskipTests=true, -Dspring.profiles.active=mysqldev]
 # Execute deployment.yml
 deploy:
   kubectl:
