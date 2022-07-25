@@ -20,14 +20,10 @@ jobs:
           distribution: temurin
           java-version: 11
           cache: maven
-      - name: Maven Package
+      - name: Compile and test application
         run: |
           chmod +x mvnw
-          ./mvnw -B clean package -DskipTests
-      - name: Maven Verify
-        run: |
-          chmod +x mvnw
-          ./mvnw -B clean verify
+          ./mvnw -B test package
   code-vulnerability:
     name: Code Scanning
     runs-on: ubuntu-20.04
