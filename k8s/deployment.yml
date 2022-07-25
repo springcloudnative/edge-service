@@ -29,27 +29,22 @@ spec:
               valueFrom:
                 configMapKeyRef:
                   name: catalog-service-conf
-                  key: polar-catalog-service-uri
+                  key: polar_catalog-service_uri
             - name: POLAR_ORDER_SERVICE_URI
               valueFrom:
                 configMapKeyRef:
                   name: order-service-conf
-                  key: polar-order-service-uri
-            - name: SPA_URL
-              valueFrom:
-                configMapKeyRef:
-                  name: edge-service-conf
-                  key: spa-url
+                  key: polar_order_service_uri
             - name: SPRING_CLOUD_CONFIG_URI
               valueFrom:
                 configMapKeyRef:
                   name: config-service-conf
-                  key: spring-cloud-config-uri
+                  key: spring_cloud_config_uri
             - name: SPRING_REDIS_HOST
               valueFrom:
                 configMapKeyRef:
                   name: edge-service-conf
-                  key: spring-redis-host
+                  key: spring_redis_host
 ---
 apiVersion: v1
 kind: Service

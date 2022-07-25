@@ -2,23 +2,19 @@ apiVersion: skaffold/v2beta28
 kind: Config
 metadata:
   name: edge-service
+# Enforce SKaffold to use Jib
 build:
-  artifacts:
-  - image: ernestoacostacuba/edge-service
-    buildpacks:
-      builder: gcr.io/paketo-buildpacks/builder:base
-      env:
-        - BP_JVM_VERSION=11.*
-  tagPolicy:
-    gitCommit: {
-                 variant: AbbrevTreeSha,
-                 ignoreChanges: true
-    }
-
   local:
     push: false
-
+  # Generated artifact
+  artifacts:
+    - image: ernestoacostacuba/edge-service
+      context: .
+      jib:
+        type: maven
+        args: [-Pjib]
+# Execute deployment.yml
 deploy:
   kubectl:
     manifests:
-    - k8s/*.yml
+      - k8s/*.yml
