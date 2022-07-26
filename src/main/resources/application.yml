@@ -10,9 +10,13 @@ spring:
   lifecycle:
     timeout-per-shutdown-phase: 15s
   config:
+    active:
+      on-profile: mysqldev
+    enabled: true
     import: "optional:configserver:"
   cloud:
     config:
+      enabled: true
       uri: ${SPRING_CLOUD_CONFIG_URI:http://localhost:8888}
       request-connect-timeout: 5000 # 5s
       request-read-timeout: 5000 # 5s
@@ -43,10 +47,10 @@ spring:
       httpclient:             # HTTP client timeouts
         connect-timeout: 5000
         response-timeout: 5s
-      pool:
-        type: elastic
-        max-idle-time: 15s
-        max-life-time: 60s
+        pool:
+          type: elastic
+          max-idle-time: 15s
+          max-life-time: 60s
       routes:
         - id: catalog-route
           uri: ${CATALOG_SERVICE_URL:http://localhost:9001}/books
@@ -81,9 +85,9 @@ resilience4j:
     configs:
       default:
         slidingWindowsSize: 20
-        permittedNumberOfCallsInHalfOpenState: 5
         failureRateThreshold: 50
         waitDurationInOpenState: 15000
+        permittedNumberOfCallsInHalfOpenState: 5
   timelimiter:
     configs:
       default:

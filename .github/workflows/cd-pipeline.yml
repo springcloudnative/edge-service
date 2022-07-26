@@ -27,14 +27,10 @@ jobs:
           distribution: temurin
           java-version: 11
           cache: maven
-      - name: Maven package
+      - name: Compile and test application
         run: |
           chmod +x mvnw
-          ./mvnw -B clean package -DskipTests
-      - name: Maven verify
-        run: |
-          chmod +x mvnw
-          ./mvnw -B clean verify -Pintegration-test
+          ./mvnw -Dspring.profiles.active=integration test -Dtest=!OrderRepositoryR2dbcTests package
   sonar-report:
     name: Test - SonarCloud Scan
     runs-on: ubuntu-20.04

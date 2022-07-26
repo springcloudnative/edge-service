@@ -24,6 +24,8 @@
 		<registryToken>${REGISTRY_TOKEN}</registryToken>
 		<!--suppress UnresolvedMavenProperty -->
 		<registryUrl>${REGISTRY_URL}</registryUrl>
+		<!--suppress UnresolvedMavenProperty -->
+		<imageVersion>${project.version}</imageVersion>
 		<jib-maven-plugin.version>3.2.1</jib-maven-plugin.version>
 		<json.version>20180130</json.version>
 		<spring-boot-maven-plugin.version>2.6.1</spring-boot-maven-plugin.version>
@@ -164,8 +166,12 @@
 						<configuration>
 							<container>
 								<ports>
-									<port>9002</port>
+									<port>9000</port>
 								</ports>
+								<jvmFlags>
+									<jvmFlag>-DskipTests</jvmFlag>
+									<jvmFlag>-Dspring.profiles.active=mysqldev</jvmFlag>
+								</jvmFlags>
 							</container>
 						</configuration>
 					</plugin>
@@ -173,10 +179,14 @@
 			</build>
 		</profile>
 
+		<!-- Profile to build the docker image with Buildpacks -->
 		<profile>
 			<id>remote</id>
 			<activation>
 				<activeByDefault>false</activeByDefault>
+				<property>
+					<name>!imageVersion</name>
+				</property>
 			</activation>
 			<build>
 				<plugins>
@@ -188,7 +198,7 @@
 								<enabled>true</enabled>
 							</layers>
 							<image>
-								<name>${registryUsername}/${project.name}:${project.version}</name>
+								<name>${registryUsername}/${project.name}:${imageVersion}</name>
 								<publish>true</publish>
 								<env>
 									<BP_JVM_VERSION>11</BP_JVM_VERSION>
